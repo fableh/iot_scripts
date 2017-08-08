@@ -1,0 +1,84 @@
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
+#include <WiFiClientSecure.h>
+#include "DHT.h"
+#define DHTPIN 13
+#define DHTTYPE DHT22
+
+DHT dht(DHTPIN, DHTTYPE);
+// WiFi configuration
+const char* ssid = "<SSID>";
+const char* password = "<pw>";
+
+//dht var
+float h;
+float t;
+String msg ="";
+
+//iot services var
+const char* host_iot_service = "192.168.1.19";
+const int httpPort_iot_service = 8699;
+String url_iot4 = "/measures/8093b71a21501a1d";
+
+void setup() {
+  Serial.begin(115200);
+  //DHT
+  dht.begin();
+  WiFi.begin(ssid, password);
+ while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+ }
+
+void loop() {
+  send_temperature_to_iot_service_via_edge();
+  send_humidity_to_iot_service_via_edge();
+  delay(2000);
+}
+
+float read_dht_temp() {
+  t = dht.readTemperature();
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+  }
+  return t;
+}
+
+float read_dht_hum() {
+  h = dht.readHumidity();
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+  }
+  return h;
+}
+
+void send_temperature_to_iot_service_via_edge() {
+  WiFiClient client;
+  String post_payload_temp = "{ \"measureIds\": [525], \"values\":" + String(read_dht_temp()) + ", \"logNodeAddr\": \"f7bed59e58f1b1d7\"}";
+  
+  if (!client.connect(host_iot_service, httpPort_iot_service)) {
+    Serial.println("connection failed");
+     
+    return;
+  }
+  client.print(String("POST") + url_iot4 + " HTTP/1.0\r\n" + "Host: " + host_iot4 + "\r\n" + "Content-Type: application/json;charset=utf-8\r\n" + "Content-Length: " + post_payload_temp.length() + "\r\n\r\n" + post_payload_temp + "\r\n\r\n");
+  while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    Serial.println(line);
+      };
+}
+void send_humidity_to_iot_service_via_edge() {
+  WiFiClient client;
+  String post_payload_humidity = "{ \"measureIds\": [526], \"values\":" + String(read_dht_hum()) + ", \"logNodeAddr\": \"f7bed59e58f1b1d7\"}";
+  if (!client.connect(host_iot_service, httpPort_iot_service)) {
+    Serial.println("connection failed");
+    return;
+  }
+  Serial.println("Try to send humidity.....");
+  client.print(String("POST") + url_iot4 + " HTTP/1.0\r\n" +  "Host: " + host_iot4 + "\r\n" + "Content-Type: application/json;charset=utf-8\r\n" + "Content-Length: " + post_payload_humidity.length() + "\r\n\r\n" +  post_payload_humidity + "\r\n\r\n");
+  while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    Serial.println(line);
+  };
+}
